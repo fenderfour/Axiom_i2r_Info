@@ -1,0 +1,15 @@
+Chipload = Feedrate / (RPM * # of flutes)
+
+Feedrate in Inches Per Minute
+
+This is for depth of cut = tool dia
+Step over = 25% of tool dia
+
+Cut depth 2x Tool Diameter reduce chipload by 20-25%
+Cut depth 3x Tool Diameter reduce chipload by 40-50%
+
+Starting Chiploads:
+
+Tool Dia 	Hardwood 	Softwood/Plywood 	MDF/Particle Board 	Soft Plastic 	Hard Plastic
+1/8" 		.003"-.005" 	.004"-.006" 	.004"-.007" 	.003"-.006" 	.002"-.004"
+1/4" 		.009"-.011" 	.011"-.013" 	.013"-.016" 	.007"-.010" 	.006"-.009"
