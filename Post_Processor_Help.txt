@@ -1,0 +1,772 @@
+
+Usage
+
+The post processor application is run from the command line which can be opened by selecting Start - Search -> Command Prompt.
+
+The post processor at minimum takes the path of the post processor configuration script following by the path of the intermediate NC data file. The configuration scripts use the extension .cps which stands for "Customizable Post-processing System".
+
+post config.cps intermediate.cnc
+
+You can specify –help for getting a list of the available options.
+
+post --help
+
+    –help: Dumps the help.
+    –nobackup: Disables backup of the original NC output file if it exists.
+    –noeditor: Specifies that the generated files should not be opened in the editor.
+    –noprogress: Disables processing progress.
+    –nointeraction: Disables user interaction during processing.
+    –timeout MINUTES: Specifies the maximum processing time in minutes before the processing is aborted. The processing does not time out by default.
+    –quiet: Disables most output to the command prompt.
+    –time: Enables timing output to the command prompt.
+    –verbose: Enables more output to the command prompt.
+    –debug: Enables debug mode.
+    –debugall: Enables debug mode with output of debugging information to the NC output file.
+    –property NAME VALUE: Specifies the value of a property.
+    –log PATH: Specifies the path of the log file. Defaults to the location of the NC output file. Use 'stdout' and 'stderr' to write the log to standard output and error, respectively.
+    –locale PATH: Specifies the path of the locale file.
+    –progress PATH: Specifies the path of the progress file.
+    –include PATH: Specifies a search path.
+    –noworkmapping: Disables automatic mapping of the toolpath motion into the WCS when possible.
+    –machine PATH: Specifies the path of the machine configuration file.
+    –format ID: Specifies the format of the intermediate NC file [CNC, APT, NCI]. The format is auto-detected by default.
+    –lang ID: Specifies the country code for the translation file. Defaults to the country code in the regional settings.
+    –shorten BLOCKS: Specifies the maximum number of blocks allowed per section. This is used to generate short example NC programs. The NC program cannot be run since they will be incomplete.
+    –encrypt PASSWORD: Encrypts the given post configuration using the password.
+    –decrypt PASSWORD: Decrypts the given encrypted post configuration using the password.
+    –interrogate: Returns the primary information about the given post as JSON. You can add multiple paths by using | as separator of the paths. When multiple posts are interrogated the output will be framed JSON. If no path is given on the command line, the interrogated posts will be read from stdin one line at a time.
+
+The NC output path is automatically generated if not specified on the command line. The NC output filename will be set to the same as for the intermediate NC path.
+
+The path of the log can be set using the –log option. If not set, the path will be set to the path of the NC output file with the extension substituted with "log".
+
+The original NC output file is by default backed up to the file which has the extension substituted with 'bak'. The –nobackup option can be used to prevent this behavior.
+
+The generated NC output should never be used if the processing has failed. The NC output file will only be generated on successful processing. On failure the generated NC output will be stored in a file which has the extention substituted with 'failed'.
+
+The post processor may write debug information or error messages directly to the NC output file. These messages are all prefixed with an exclamation mark ('!'). An error message is always written to the NC output on processing failure to indicate bad NC data. The NC debug data can be enabled using the –debugall option.
+Properties
+
+You can override user-defined as well as built-in properties by specifying the name-value pairs using the –property option. This allows you to trigger specific post behavior without having to modify the post configuration itself.
+
+The user-defined properties are dumped when running the post processor in verbose mode. The default value as well as the current value are shown. The modified properties are highlighted with an asterix ('*').
+
+post --property programName 100 --property writeTools false config.cps intermediate.cnc
+
+Localization
+
+The post processor has built-in support for localization of the configuration script. Arbitrary messages can be translated into a specific language using the localize() function. When invoked localize() will lookup the specified message in a translation file (known as locale) which must accompany the configuration script. The path of the translation file is derived from the path of the configuration script by substituting the extension with the country code specified by the –lang option and adding '.lang'. For instance, if the path of the configuration script is 'C:\posts\genericiso.cps' and the language id is 'de' then the translation file path will be 'C:\posts\genericiso.de.lang'. The post processor will also try to load the translation file 'common.?.lang' (where ? is substituted with the country code). This allows several post configurations to be translated using a single translation file.
+Editor
+
+The post processor will try to open the log and NC output files automatically in the preferred editor when the post processing has completed. The path of the preferred editor is specified in the Windows Registry under "Software\Autodesk\Autodesk\Post Processor\editor" (string type). The entry is valid for both the personal and machine Registry with the personal setting taking priority.
+
+The post processor will try to open the generated files in the included NC editor by default (see http://cam.autodesk.com).
+
+Attention
+    Serious problems might occur if you modify the Windows Registry incorrectly. Modify the registry at your own risk.
+
+Exit Codes
+
+The post processor will returns different exit codes dependent on the kind of failure.
+
+    0: Successful processing.
+    1: Unspecified failure.
+    100: Failed to load post configuration.
+    101: Empty configuration.
+    102: Failed to initialize.
+    103: Failed to evaluate configuration.
+    104: Invalid machine configuration.
+    200: Failed to load intermediate NC data.
+    201: Unknown format.
+    300: Failed to open output file.
+    400: Failed to open log file.
+    500: Post processing failed.
+    501: Post processing was aborted.
+    502: Post processing timed out.
+    1000-1999: User-defined exit codes. The exit code can be set using the setExitCode() function.
+
+
+Generated by Autodesk, Inc. 13 August 2018
+Copyright (c) 2012-2017 by Autodesk, Inc. 
+
+
+
+Post Processor Configuration
+
+The format of the processed NC output is determined by a post processing configuration script. This script is responsible for transforming the intermediate NC data one NC record at a time. The basic format of the configuration script is the JavaScript language. The JavaScript language is quite simple and easy to learn. Tutorials for JavaScript are widely available on the Internet.
+
+The following standard JavaScript API classes are supported from the configuration script: Array, Boolean, Date, Math, Number, and String.
+
+Attention
+    Note that JavaScript is a case sensitive language meaning that 'qwerty' and 'Qwerty' do not refer to the same data. All angles are represented in radians unless otherwise specified. You can use toDeg() and toRad() functions to convert between radians and degrees. This allows seemless integration with the standard JavaScript API.
+
+For a quick overview of the primary requirements you can start by examining the minimal post configuration script 'minimal.cps' located in the posts folder.
+
+This section describes the common tasks required for the specific entry functions.
+
+onMachine
+
+onMachine() is invoked when the machine configuration changes during post processing. This entry function can normally be disregarded.
+
+onOpen
+
+Setup program beginning using programName.
+
+onSection
+
+Setup plane and origin currentSection.workPlane and currentSection.workOrigin.
+
+Setup work coordinate system using currentSection.workOffset property.
+
+onMovement
+
+Possibly handle feeds by movement type. This can also be done in onRapid(), onLinear(), and onCircular().
+
+onPower
+
+Handle power mode changes. This can also be done during the cutting motion using the 'power' property.
+
+onRadiusCompensation
+
+Possibly setup radius compensation mode. This can also be done in onRapid(), onLinear(), and onCircular().
+
+onToolCompensation
+
+Allows tool compensation to change during a section. Only used for tool types for which dual compensation is defined.
+
+onRapid
+
+Output rapid traverse motion.
+
+onLinear
+
+Output linear feed motion.
+
+onCircular
+
+Output circular motion if supported.
+
+onRapid5D
+
+Output rapid 5-axis traverse motion.
+
+onLinear5D
+
+Output linear 5-axis feed motion.
+
+onRewindMachine
+    Handle machine axis rewind for simultaneous 5-axis motion.
+
+onDwell
+
+Output dwelling period.
+
+onSpindleSpeed
+
+Output spindle speed.
+
+onCycle
+
+Initialize cycle state.
+
+onCyclePoint
+
+Map supported cycles or invoke expandCyclePoint() to expand the cycle. Alternatively, invoke cycleNotSupported() for unsupported cycles.
+
+onCycleEnd
+
+Finalize cycle state.
+
+onSectionEnd
+
+Retract to machine coordinate system.
+
+onClose
+
+Restore and end program.
+
+onTerminate
+
+Access output file in external applications. The primary output file will be locked and not fully flushed until onTerminate() is invoked. The log file is still locked at this point.
+
+Generated by Autodesk, Inc. 13 August 2018
+Copyright (c) 2012-2017 by Autodesk, Inc. 
+
+
+Entry Functions
+
+The intermediate NC data is transferred to the configuration script one record at a time using the special entry functions listed below.
+Entry Functions
+onMachine()
+
+onMachine() is invoked when the machine configuration changes during post processing.
+onOpen()
+
+onOpen() is invoked once at post processing initialization. This is the place to output the program header.
+
+The configuration script is not allowed to modify the entry functions after onOpen() has been invoked.
+onParameter(String name, String value)
+
+onParameter() is invoked for each parameter in the CLD data where a parameter is a simple name-value pair.
+onPassThrough(String value)
+
+onPassThrough() is invoked for pass-through information. Pass-through allows the user to transfer text unmodified through to the post processor to the output file. This feature should be used with caution as the post processor will ignore any pass-through data.
+onComment(String comment)
+
+onComment() is invoked for each comment.
+onSection()
+
+onSection() is invoked at the start of a section. A section commonly corresponds to an individual operation within the CAM system. However, note that it is perfectly legal from the post processors perspective if an operation generated multiple sections.
+onSectionSpecialCycle()
+
+onSectionSpecialCycle() is invoked at the start of a section if the section contains a cycle that has been marked as special. A section commonly corresponds to an individual operation within the CAM system. However, note that it is perfectly legal from the post processors perspective if an operation generated multiple sections. onSectionSpecialCycle() doesn't do anything by default. Use PostProcessor.setSectionSpecialCycle() to mark a cycle as special.
+onDwell(Number seconds)
+
+onDwell() is invoked per dwell command.
+onSpindleSpeed(Number spindleSpeed)
+
+Invoked when the spindle speed changes. The property 'spindleSpeed' specifies the current spindleSpeed.
+onRapid(Number x, Number y, Number z)
+
+onRapid() is invoked per linear rapid (high-feed) motion. Make sure to prevent dog-leg movement in the generated program.
+onLinear(Number x, Number y, Number z, Number feedrate)
+
+onLinear() is invoked per linear motion.
+onCircular(Boolean clockwise, Number cx, Number cy, Number cz, Number x, Number y, Number z, Number feedrate)
+
+onCircular() is invoked per circular motion.
+onRapid5D(Number x, Number y, Number z, Number dx, Number dy, Number dz)
+
+onRapid5D() is invoked per linear 5-axis rapid motion.
+onLinear5D(Number x, Number y, Number z, Number dx, Number dy, Number dz, Number feedrate)
+
+onLinear5D() is invoked per linear 5-axis motion.
+onRewindMachine(Number a, Number b, Number c)
+
+onRewindMachine() is invoked per for simultaneous 5-axis motion when machine axis rewind is required. Note that rewinds are commonly undesired but cannot be avoided for certain machine types.
+onMovement(Integer movement)
+
+onMovement() is invoked when the movement type changes. The property 'movement' specifies the current movement type.
+onPower(bool power)
+
+onPower() is invoked when the power mode changes. The property 'power' specifies the current power mode. Used for water jet, laser cutter, and plasma cutter.
+onRadiusCompensation()
+
+onRadiusCompensation() is invoked when the radius compensation mode changes. The property 'radiusCompensation' specifies the current radius compensation mode.
+onToolCompensation(Integer compensation)
+
+onToolCompensation() is invoked when the tool compensation mode changes. Only used for tool types for which dual compensation is defined.
+onCycle()
+
+onCycle() is invoked at the beginning of each cycle.
+
+The variable 'cycleType' holds the unique name identifying the type of the current cycle. The parameters of the cycles are available through the 'cycle' variable.
+onCyclePoint(Number x, Number y, Number z)
+
+onCyclePoint() is invoked for each point associated with the active cycle. onCyclePoint() is only invoked between onCycle() and onCycleEnd().
+onCycleEnd()
+
+onCycleEnd() is invoked on cycle termination. A corresponding onCycleEnd() is guaranteed to follow an invocation of onCycle().
+onCommand(Integer command)
+
+onComment() is invoked for well-known commands (e.g. stop spindle).
+onMachineCommand(Integer command)
+
+onMachineComment() is invoked for machine commans (e.g. 28 could be mapped to M28).
+onOrientateSpindle(Number angle)
+
+onOrientateSpindle() is invoked when a specific spindle orientation is required. The function may be invoked when expanding cycles.
+onSectionEnd()
+
+onSectionEnd() is invoked at the termination of a section.
+onSectionEndSpecialCycle()
+
+onSectionEndSpecialCycle() is invoked at the termination of a section if the section contains a cycle that has been marked as special. onSectionEndSpecialCycle() doesn't do anything by default. Use PostProcessor.setSectionSpecialCycle() to mark a cycle as special.
+onClose()
+
+onClose() is invoked at post processing completion. This is the place to output your program footer.
+onTerminate()
+
+onTerminate() is invoked once after post processing has completed. The output file is unlocked at this point and can be moved and copied as desired.
+
+Generated by Autodesk, Inc. 13 August 2018
+Copyright (c) 2012-2017 by Autodesk, Inc. 
+
+
+Cycles
+
+Each cycle has a unique id which is available through the cycleType property. All cycles are described by a set of parameters and an ordered set of points. The cycle parameters are available in the property cycle upon invocation of onCycle().
+onCycle() // invoked on cycle
+onCyclePoint(x, y, z) // invoked once per point
+onCycleEnd() // invoked on cycle completion
+Well-Known Cycles
+
+It is discouraged that you overload the meaning of built-in cycles and parameters. Instead a new cycle or parameter should be introduced.
+
+Well-known cycles that do not have an NC counterpart for a particular control may be expanded by invoking expandCyclePoint(). expandCyclePoint() may in return invoke onCommand(). Some times it is acceptable to map rapid traversal to feed traversal but the oppsosite is not allowed unless it is guaranteed that the cutter cannot come in contact with (or close to) any stock. Note that not all cycles can be expanded into alternative commands and must be implemented in the post configuration to be supported.
+
+Attention
+    The position after any completed cycle motion is by default expected to be the last given cycle point projected onto the initial Z-plane. If no cycle points have been provided the current position is expected to remain unchanged. The configuration script must explicitly set the current position using setCurrentPosition() if it is different from the default and possibly add additional motion.
+
+The following parameters have been reserved. Note that not all cycles make use of each defined parameter.
+
+    'clearance': The clearance plane (absolute coordinate).
+    'retract': The retract plane (absolute coordinate). Rapid motion is allowed from the clearance plane and down to the retract plane). The retract plane defaults to the clearance plane. The retract plane can be ignored if not supported by the control.
+    'stock': The stock plane (absolute coordinate).
+    'depth': The depth below the stock plane. The depth is positive for points below the stock plane.
+    'bottom': The bottom plane (stock - depth).
+    'pitch': The helical pitch (incremental depth per turn).
+    'feedrate': The primary feedrate. Usually specifies the plunging feedrate.
+    'retractFeedrate': The retraction feedrate. Defaults to the primary feedrate if not specified.
+    'plungeFeedrate': The plunge feedrate. Defaults to the primary feedrate if not specified. Note that the primary feedrate ('feedrate') is the plunge feedrate for drilling cycles.
+    'stopSpindle': Stop spindle during positioning/retracting.
+    'positioningFeedrate': The positioning feedrate.
+    'positioningSpindleSpeed': The positioning spindle speed.
+    'dwellDepth': The dwelling depth.
+    'dwell': The dwelling time in seconds.
+    'incrementalDepth': The incremental/pecking depth.
+    'incrementalDepthReduction': The incremental/pecking depth reduction per plunge. Defaults to 0.
+    'minimumIncrementalDepth': The minimum incremental/pecking depth per plunge. Defaults to 'incrementalDepth'.
+    'accumulatedDepth': Specifies the total plunging depth before forcing full retract to the retract plane.
+    'plungesPerRetract': Specifies the number of plunges per retract (derived from 'accumulatedDepth' and 'incrementalDepth').
+    'chipBreakDistance': Specifies the distance to retract to break the chip. Undefined by default.
+    'shift': Specifies the shifting distance away from the boring wall.
+    'shiftOrientation': Specifies the orientation of the cutter in radians when shifting. Defaults to machineParameters.spindleOrientation.
+    'compensatedShiftOrientation': Specifies the orientation of the spindle in radians when shifting (shiftOrientation - tool.boringBarOrientation).
+    'shiftDirection': Specifies the shift direction in radians when shifting (pi + shiftOrientation).
+    'backBoreDistance': Specifies the back boring distance.
+    'diameter': Specifies the diameter of the hole.
+    'stepover': The maximum stepover between passes.
+    'numberOfSteps': Specifies the number of passes/steps.
+    'threading': Specifies left/right handed thread.
+    'direction': Specifies climb/conventional milling.
+    'repeatPass': Specifies that the final pass should be repeated.
+    'compensation': Specifies that the compensation type. That valid types are 'computer', 'control', 'wear', and 'inverseWear'.
+    'incrementalX': Specifies the incremental distance along X.
+    'incrementalZ': Specifies the incremental distance along Z.
+
+The parameters 'bottom', 'plungesPerRetract', 'compensatedShiftOrientation', and 'shiftDirection' are calculated by the post processor.
+
+The post processor has built-in support for the following cycles. Please note that the G-codes specified below are only intended for guidance and may not be the proper mapping for a particular control.
+Preliminary Motion
+
+The preliminary default motion for a cycle point is as follows:
+
+a) If the initial plane is above the clearance plane:
+
+    Move at rapid traverse to the X-Y position at the initial plane.
+    Move at rapid traverse to the clearance plane (along the tool axis).
+    Move at rapid traverse to the retract plane (along the tool axis). This motion can be ignored.
+
+b) If the initial plane is below the clearance plane:
+
+    Move at rapid traverse to the clearance plane (along the tool axis).
+    Move at rapid traverse to the X-Y position at the clearance plane.
+    Move at rapid traverse to the retract plane (along the tool axis). This motion can be ignored.
+
+drilling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate'
+
+Cycle for center drilling, drilling, reaming, and rough boring (G81 style). Same as 'counter-boring' but without dwelling at the bottom of the hole.
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Retract at rapid traverse to clearance plane (or initial plane for last cycle point).
+
+counter-boring
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell'
+
+Cycle for counter boring, spot drilling, and face drilling (G82 style). Similar to 'drilling' but dwells at the bottom of the hole.
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Dwell ('dwell').
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+chip-breaking
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell', 'incrementalDepth', 'incrementalDepthReduction', 'accumulatedDepth', 'chipBreakDistance'
+
+This cycle is for chip breaking (G73 style). The property 'machineParameters.chipBreakingDistance' specifies the distance that the machine will retract to break the chips for cycle 'chip-breaking'. If 'machineParameters.chipBreakingDistance' is undefined the cycle will use full retracts. When expanding the cycle the property 'machineParameters.drillingSafeDistance' specifies the safety distance above the remaining stock for which the machine will rapid down (if undefined the cycle will do feed plunging from the clearance plane).
+
+    Preliminary motion.
+    Move toward bottom at by no more than the given plunge depth ('incrementalDepth') at a time.
+    Dwell ('dwell').
+    Retract by distance 'chipBreakDistance' if defined and otherwise 'machineParameters.chipBreakingDistance' to break chip (or retract to clearance plane if 'accumulatedDepth' has been reached).
+    Repeat step 2-4 until bottom has been reached.
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+deep-drilling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell', 'incrementalDepth', 'incrementalDepthReduction'
+
+This cycle is for deep hole drilling with full retract (G83 style). When expanding the cycle the property 'machineParameters.drillingSafeDistance' specifies the safety distance above the remaining stock for which the machine will rapid down (if undefined the cycle will do feed plunging from the clearance plane).
+
+    Preliminary motion.
+    Move toward bottom by no more than the given plunge depth ('incrementalDepth') at a time.
+    Retract at rapid traverse to retract plane if bottom has not been reached.
+    Repeat 2-3 until bottom has been reached.
+    Dwell at bottom ('dwell').
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+break-through-drilling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'stopSpindle', 'breakThroughDistance', 'breakThroughFeedrate', 'breakThroughSpindleSpeed', 'dwell', 'stopSpindle', 'dwell'
+
+This cycle is for breaking through with reduced feed.
+
+    Preliminary motion.
+    Move to break through starting depth at feedrate ('feedrate').
+    Move to bottom at the break-through feedrate and speed ('breakThroughFeedrate' and 'breakThroughSpindleSpeed').
+    Dwell at dwell depth ('dwell').
+    Conditionally stop spindle ('stopSpindle').
+    Retract at feedrate to clearance plane (initial plane for the last cycle point).
+    Turn on spindle if stopped.
+
+gun-drilling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'startingDepth', 'stopSpindle', 'positioningFeedrate', 'positioningSpindleSpeed', 'dwellDepth', 'dwell'
+
+This cycle is for guided deep hole drilling commonly known as gun drilling. This cycle is used for deep drilling with non self-guiding drills.
+
+    Preliminary motion.
+    Move to the starting position at the positioning feedrate ('positioningFeedrate').
+    Move to bottom at feedrate ('feedrate').
+    Dwell at dwell depth ('dwell').
+    Retract at retract feedrate to clearance plane (initial plane for the last cycle point).
+
+left-tapping
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell'
+
+Left-tapping (G74 style).
+
+    Preliminary motion.
+    Start speed-feed synchronization.
+    Move to bottom at feedrate ('feedrate').
+    Stop the spindle.
+    Start the spindle in clockwise direction.
+    Retract at feedrate to clearance plane (or initial plane for last cycle point).
+    If speed-feed synch was not on before the cycle started, stop it.
+    Stop the spindle.
+    Start the spindle in counterclockwise direction.
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+right-tapping
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell'
+
+Right-tapping (G84 style). If the feedrate is not specified the feedrate will be set to the tapping feed of the current tool.
+
+    Preliminary motion.
+    Start speed-feed synchronization.
+    Move to bottom at feedrate ('feedrate').
+    Stop the spindle.
+    Start the spindle in counterclockwise direction.
+    Retract at feedrate to clearance plane (or initial plane for last cycle point).
+    If speed-feed synch was not on before the cycle started, stop it.
+    Stop the spindle.
+    Start the spindle in clockwise direction.
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+tapping
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell'
+
+Left tapping for left tapping tools otherwise right tapping. See left-tapping and right-tapping.
+left-tapping-with-chip-breaking
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'incrementalDepth', 'incrementalDepthReduction', 'accumulatedDepth', 'chipBreakDistance', 'dwell'
+
+Right-tapping with chip breaking. If the feedrate is not specified the feedrate will be set to the tapping feed of the current tool. The property 'machineParameters.chipBreakingDistance' specifies the distance that the machine will retract to break the chips for the cycle. If 'machineParameters.chipBreakingDistance' is undefined the cycle will use full retracts. When expanding the cycle the property 'machineParameters.drillingSafeDistance' specifies the safety distance above the remaining stock for which the machine will rapid down (if undefined the cycle will do feed plunging from the clearance plane).
+
+    Preliminary motion.
+    Start speed-feed synchronization.
+    Move toward bottom at feedrate ('feedrate') by no more than the given plunge depth ('incrementalDepth') at a time.
+    Stop the spindle.
+    Start the spindle in clockwise direction.
+    Retract by distance 'chipBreakDistance' is defined and otherwise 'machineParameters.chipBreakingDistance' to break chip (or retract to clearance plane (or initial plane for last cycle point) if 'accumulatedDepth' has been reached).
+    If speed-feed synch was not on before the cycle started, stop it.
+    Stop the spindle.
+    Start the spindle in counterclockwise direction.
+    Repeat step 2-9 until bottom has been reached.
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+right-tapping-with-chip-breaking
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'incrementalDepth', 'incrementalDepthReduction', 'accumulatedDepth', 'chipBreakDistance'
+
+Right-tapping with chip breaking. If the feedrate is not specified the feedrate will be set to the tapping feed of the current tool. The property 'machineParameters.chipBreakingDistance' specifies the distance that the machine will retract to break the chips for the cycle. If 'machineParameters.chipBreakingDistance' is undefined the cycle will use full retracts. When expanding the cycle the property 'machineParameters.drillingSafeDistance' specifies the safety distance above the remaining stock for which the machine will rapid down (if undefined the cycle will do feed plunging from the clearance plane).
+
+    Preliminary motion.
+    Start speed-feed synchronization.
+    Move toward bottom at feedrate ('feedrate') by no more than the given plunge depth ('incrementalDepth') at a time.
+    Stop the spindle.
+    Start the spindle in counterclockwise direction.
+    Retract by distance 'chipBreakDistance' is defined and otherwise 'machineParameters.chipBreakingDistance' to break chip (or retract to clearance plane (or initial plane for last cycle point) if 'accumulatedDepth' has been reached).
+    If speed-feed synch was not on before the cycle started, stop it.
+    Stop the spindle.
+    Start the spindle in clockwise direction.
+    Repeat step 2-9 until bottom has been reached.
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+tapping-with-chip-breaking
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'incrementalDepth', 'incrementalDepthReduction', 'accumulatedDepth', 'chipBreakDistance'
+
+Left tapping for left tapping tools otherwise right tapping. See left-tapping-with-chip-breaking and right-tapping-with-chip-breaking.
+reaming
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'retractFeedrate'
+
+This cycle is used to enlarge an existing hole slightly (G85 style).
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Retract at feedrate to retract plane ('retractFeedrate').
+    Retract at rapid traverse to clearance plane (initial plane for the last cycle point).
+
+stop-boring
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell'
+
+Boring cycle for tighter holes (G86 style). Counter boring for boring bar. This cycle is used to achieve accurate depths.
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Dwell ('dwell').
+    Stop spindle.
+    Retract at rapid traverse to clearance plane.
+    Start spindle.
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+fine-boring
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell', 'shift'
+
+Cycle for fine boring (G76 style).
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Dwell ('dwell').
+    Stop spindle.
+    Orientate spindle.
+    Move the tool away from bore wall by given distance ('shift').
+    Retract at rapid traverse.
+    Start spindle.
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+back-boring
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell', 'shift', 'shiftOrientation', 'backBoreDistance'
+
+Back boring (G87 style). The 'machineParameters.spindleOrientation' will be used when expanding the cycle if 'shiftOrientation' is undefined. The tool must be compensated to the top of the cutter. You must make sure that there is room for the tool below the given Z-levels.
+
+    Preliminary motion.
+    Stop spindle.
+    Orientate spindle.
+    Shift tool position ('shift' and 'shiftOrientation').
+    Move at rapid traverse to bottom along tool axis.
+    Move at rapid traverse horizontally to center position (x and y).
+    Start spindle.
+    Move at feedrate to top of hole ('feedrate' and 'backBoreDistance').
+    Move at feedrate to bottom of hole ('feedrate').
+    Stop spindle.
+    Orientate spindle.
+    Shift tool position ('shift' and 'shiftOrientation').
+    Retract at rapid traverse to retract plane ('retract').
+    Move at rapid traverse horizontally to center position (x and y).
+    Start spindle.
+    Retract at rapid traverse to clearance plane ('clearance').
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+manual-boring
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'dwell'
+
+Boring cycle with manual retract (G88 style).
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Dwell ('dwell').
+    Stop spindle.
+    Stop program.
+    Retract at rapid traverse to clearance plane.
+    Start spindle.
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+boring
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'retractFeedrate', 'dwell'
+
+Boring (G89 style).
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Dwell ('dwell').
+    Retract at feedrate ('retractFeedrate').
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+bore-milling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'pitch', 'diameter', 'direction', 'stepover', 'numberOfSteps', 'repeatPass', 'compensation'
+
+Bore milling.
+
+    Preliminary motion.
+    Move to bottom in helical motion at feedrate ('feedrate').
+    Do finishing of bottom at feedrate ('feedrate').
+    Move to center of hole at feedrate ('feedrate').
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+thread-milling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'pitch', 'diameter', 'dwell', 'threading', 'direction', 'stepover', 'numberOfSteps', 'repeatPass', 'compensation'
+
+Thread milling.
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Climb mill to the stock plane or conventional mill to the bottom in helical motion at feedrate ('feedrate').
+    Dwell ('dwell').
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+circular-pocket-milling
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate', 'plungeFeedrate', 'diameter', 'stepover', 'incrementalDepth', 'direction', 'repeatPass'
+
+Circular pocket milling.
+
+    Preliminary motion.
+    Plunge toward bottom at feedrate ('feedrate') by no more than the given plunge depth ('incrementalDepth') at a time.
+    Clear level at feedrate ('feedrate').
+    Move to center at feedrate ('feedrate').
+    Repeat step 2-4 until bottom has been reached.
+    Retract at rapid traverse to initial plane for the last cycle point.
+
+probe
+
+Defined properties: 'clearance', 'retract', 'stock', 'depth', 'feedrate'
+
+Cycle for probing.
+
+    Preliminary motion.
+    Move to bottom at feedrate ('feedrate').
+    Retract at rapid traverse to clearance plane (or initial plane for last cycle point).
+
+thread-turning
+
+Defined properties: 'clearance', 'pitch', 'incrementalX', 'incrementalZ'
+
+Thread turning.
+
+    Preliminary motion.
+    Move to starting ZX.
+    Move to end of thread with feed-spindle synchronization.
+    Retract at rapid traverse to initial ZX.
+
+probing-x
+probing-y
+probing-z
+probing-x-channel
+probing-x-channel-not-symmetric
+probing-x-channel-with-island
+probing-x-wall
+probing-x-wall-not-symmetric
+probing-y-channel
+probing-y-channel-not-symmetric
+probing-y-channel-with-island
+probing-y-wall
+probing-y-wall-not-symmetric
+probing-xy-inner-corner
+probing-xy-outer-corner
+probing-xy-circular-hole
+probing-xy-circular-hole-with-island
+probing-xy-circular-boss
+probing-xy-circular-hole-with-z
+probing-xy-circular-hole-island-with-z
+probing-xy-circular-boss-with-z
+probing-xy-rectangular-hole
+probing-xy-rectangular-hole-with-island
+probing-xy-rectangular-boss
+probing-xy-rectangular-hole-with-z
+probing-xy-rectangular-hole-island-with-z
+probing-xy-rectangular-boss-with-z
+probing-xyz-corner
+probing-x-plane-angle
+probing-y-plane-angle
+secondary-spindle-grab
+
+Defined properties: 'usePartCatcher', 'stopSpindle', 'feedrate', 'spindleSpeed', 'dwell', 'spindleOrientation', 'feedPosition', 'chuckPosition', 'useMachineFrame'
+secondary-spindle-pull
+
+Defined properties: 'stopSpindle', 'spindleSpeed', 'feedrate', 'pullingDistance', 'dwell'
+secondary-spindle-return
+
+Defined properties: 'stopSpindle', 'spindleSpeed', 'feedrate', 'dwell', 'feedPosition', 'useMachineFrame', 'unclampMode'
+
+Where 'unclampMode' can be 'keep-clamped', 'unclamp-primary', or 'unclamp-secondary'.
+
+Generated by Autodesk, Inc. 13 August 2018
+Copyright (c) 2012-2017 by Autodesk, Inc. 
+
+
+Translation
+
+The post processor has built-in support for localization of the configuration script. The translation API allows the post configuration to be separated from its translation. Arbitrary messages can be translated into a specific language using the localize() function. When invoked localize() will lookup the specified message in a translation file (known as locale) which must accompany the configuration script. The path of the translation file is derived from the path of the configuration script by substituting the extension with the selected country code (see setLangId()) and adding '.lang'). For instance, if the path of the configuration script is 'C:\posts\genericiso.cps' and the language id is 'de' then the translation file path will be 'C:\posts\genericiso.de.lang'. The post processor will also try to load the translation file 'common.?.lang' (where ? is substituted with the country code). This allows several post configurations to be translated using a single translation file. The translation files are prioritized such that the last loaded file takes percedence over the other files.
+
+The following line would write out "; Werkzeug" if used with the translation file listed below.
+writeln("; " + localize("Tool"));
+
+The translation file is an XML file which could look something like the following.
+
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet type='text/xsl' href='locale.xsl'?>
+<locale xmlns="http://www.hsmworks.com/xml/2008/locale">
+<!--The content of this document may be covered by copyright-->
+<description>German</description>
+<country>de</country>
+<message name="Tool">Werkzeug</message>
+<message name="Level">Niveau</message>
+</locale>
+
+This translation file will map the text "Tool" into "Werkzeug" and "Level" into "Niveau". All other text will not be translated unless another translation file maps the text.
+
+Generated by Autodesk, Inc. 13 August 2018
+Copyright (c) 2012-2017 by Autodesk, Inc. 
+
+
+Autodesk CAM Post Processor Documentation
+Autodesk.png
+
+Autodesk, Inc.
+http://cam.autodesk.com
+
+E-mail for all users: cam.posts@autodesk.com
+
+Copyright (c) 2012-2018 by Autodesk, Inc.
+
+This document describes the configuration format for use with Autodesk CAM Post Processor.
+
+Attention
+    Wrong NC programs can result in severe damage to CNC machine, machined part, and/or bodily injury. All programs must be verified before use.
+
+    Usage
+    Post Processor Configuration
+    Entry Functions
+    Cycles
+    Translation
+
+Technical Support
+
+Please contact us using the e-mail address for the corresponding CAM solution for support issues or feature requests related specifically to the post processor. Problems related to other products using the post processor should be redirected to the appropriate support channels for these products.
+
+E-mail for all users: cam.posts@autodesk.com
+
+You can also report problems to us at this address. Please include the configuration script, intermediate NC file, and NC output file in a ZIP-archive with a description of the problem.
+
+Generated by Autodesk, Inc. 13 August 2018
+Copyright (c) 2012-2017 by Autodesk, Inc. 
+
